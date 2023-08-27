@@ -9,7 +9,6 @@ class HashtableOpen8to16Impl implements HashtableOpen8to16 {
     private static final int INITIAL_CAPACITY = 8;
     private static final int MAX_CAPACITY = 16;
     private static final double LOAD_FACTOR_THRESHOLD = 0.25;
-    int count;
     private int capacity;
     private int size;
     private List<Integer> keys;
@@ -19,74 +18,56 @@ class HashtableOpen8to16Impl implements HashtableOpen8to16 {
     public HashtableOpen8to16Impl() {
         this.capacity = INITIAL_CAPACITY;
         this.size = 0;
-//        this.keys = new int[capacity];
         this.values = new Object[capacity];
         this.keys = new ArrayList<>(capacity);
+
         for (int i = 0; i < capacity; i++) {
             keys.add(0);
         }
-
     }
 
     @Override
     public void insert(int key, Object value) {
-
+        if (size == capacity && ! keys.contains(key)) resize();
         int index = hash(key);
 
         for (int i = 0; i < capacity; i++) {
-            if (key == 0 && count != 1) {
-                keys.set(index, key);
-                values[index] = value;
-                size++;
-                count = 1;
-                break;
-            }
-            if (keys.get(index) == key) {
+            if (keys.get(index) == key && values[index] != null) {
                 values[index] = value;
                 break;
             } else {
                 if (keys.get(index) == 0 && values[index] == null) {
-
                     keys.set(index, key);
                     values[index] = value;
                     size++;
-                    break;
+                    if (size > MAX_CAPACITY) throw new IllegalStateException();
+                    return;
                 } else {
                     index = (index + 1) % capacity;
-                    if (index >= capacity) index = 0;
+                    if (index >= capacity) {
+                        index = 0;
+                    }
                 }
             }
-        }
-        if (size == capacity) {
-            resize();
         }
     }
 
-
     private void resize() {
-        count = 0;
-        int newCapacity = Math.max(capacity * 2, MAX_CAPACITY);
+        int newCapacity = capacity * 2;
         List<Integer> newKeys = new ArrayList<>(newCapacity);
+        Object[] newValues = new Object[newCapacity];
         for (int i = 0; i < newCapacity; i++) {
             newKeys.add(0);
         }
-        Object[] newValues = new Object[newCapacity];
 
         for (int i = 0; i < capacity; i++) {
-            int newIndex = Math.abs(keys.get(i) % newCapacity);
-            if (keys.get(i) == 0 && count != 1) {
-                newKeys.set(newIndex, keys.get(i));
-                newValues[newIndex] = values[i];
-                count = 1;
-            } else {
-                if (keys.get(i) != 0 && values[i] != null) {
-                    while (newKeys.get(newIndex) != 0) {
-                        newIndex = (newIndex + 1) % newCapacity;
-                    }
-                    newKeys.set(newIndex, keys.get(i));
-                    newValues[newIndex] = values[i];
-                }
+            int newIndex = Math.abs(keys.get(i)) % newCapacity;
+
+            while (newKeys.get(newIndex) != 0 || newValues[newIndex] != null) {
+                newIndex++;
             }
+            newKeys.set(newIndex, keys.get(i));
+            newValues[newIndex] = values[i];
         }
         capacity = newCapacity;
         keys = newKeys;
@@ -99,38 +80,38 @@ class HashtableOpen8to16Impl implements HashtableOpen8to16 {
 
     @Override
     public Object search(int key) {
-        int index = hash(key);
-        for (int i = 0; i < capacity; i++) {
-            if (keys.get(index) != 0 && keys.get(index) == key) {
-                return values[index];
-            } else {
-                index++;
-                if (index == keys.size()) return null;
-            }
+        if (keys.contains(key)) {
+            int pos = keys.indexOf(key);
+            return values[pos];
         }
         return null;
     }
 
     @Override
     public void remove(int key) {
-        int index = hash(key);
-        while (keys.get(index) != 0) {
-            if (keys.get(index) == key) {
-                keys.set(index, 0);
-                values[index] = null;
-                size--;
-                if (size > 0 && size <= capacity * LOAD_FACTOR_THRESHOLD) {
-                    shrink();
+        for (int i = 0; i < capacity; i++) {
+            if (keys.contains(key)) {
+                int pos = keys.indexOf(key);
+                if (values[pos] != null) {
+                    keys.set(pos, 0);
+                    values[pos] = null;
+                    size--;
+                    break;
                 }
-                return;
             }
-            index = (index + 1) % capacity;
         }
-
+        if (size > 0 && size <= capacity * LOAD_FACTOR_THRESHOLD) {
+            cutTable();
+        }
     }
 
-    private void shrink() {
-        int newCapacity = Math.min(capacity / 2, INITIAL_CAPACITY);
+    @Override
+    public int size() {
+        return size;
+    }
+
+    private void cutTable() {
+        int newCapacity = capacity / 2;
         List<Integer> newKeys = new ArrayList<>(newCapacity);
         Object[] newValues = new Object[newCapacity];
         for (int i = 0; i < newCapacity; i++) {
@@ -150,11 +131,6 @@ class HashtableOpen8to16Impl implements HashtableOpen8to16 {
         capacity = newCapacity;
         keys = newKeys;
         values = newValues;
-    }
-
-    @Override
-    public int size() {
-        return size;
     }
 
     @Override
